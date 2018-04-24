@@ -1,0 +1,82 @@
+#!/bin/bash
+mongo_cur=$(ls /u01/services|grep mongo)
+work_dir=/u01/services/${mongo_cur}
+help() {
+	echo Usage: $0 \{ start \| restart \| stop \| status \}
+}
+start() {
+	cd ${work_dir}
+	r_pid=$(pgrep mongo|wc -l)
+	if [[ $r_pid -ge 1 ]];then
+		echo \[mongod\] mongo is alive
+	else
+		bin/mongod -f mongod.conf 1>/dev/null
+		if [[ $? -eq 0 ]];then
+			echo \[mongod\] mongod start successfully.
+		else
+			echo \[mongod\] mongod start failed,please start manually.
+		fi
+	fi
+}
+restart() {
+	cd ${work_dir}
+	r_pid=$(pgrep mongo|wc -l)
+	if [[ $r_pid -ge 1 ]];then
+		stop
+		start
+	else
+		echo \[mongod\] mongod is \*NOT\* alive, try to start it.
+		start
+	fi
+}
+stop() {
+	cd ${work_dir}
+	r_pid=$(pgrep mongo|wc -l)
+	if [[ $r_pid -ge 1 ]];then
+		pgrep mongo|xargs kill -9
+		if [[ $? -eq 0 ]];then
+			echo \[mongod\] mongod stop successfully.
+		else
+			echo \[mongod\] mongod stop failed,please stop manually.
+		fi
+	else
+		echo \[mongod\] mongod is \*NOT\* alive.
+	fi
+}
+status() {
+	ins_pid=$(ps aux|grep mongod|grep -v grep|awk '{print $2}')
+	if [[ -n ${ins_pid} ]];then
+		echo \[mongod\] mongod version is:$(${work_dir}/bin/mongo --version|grep version|awk -F ':' '{print $2}')
+		echo \[mongod\] mongod pid is: ${ins_pid}
+		echo \[mongod\] mongod instance memory usage is: $(top -bn1|grep $ins_pid|awk '{print $6}')
+		echo \[mongod\] mongod instance memory usage percentage is: $(top -bn1|grep $ins_pid|awk '{print $10}')
+		echo \[mongod\] mongod instance cpu usage percentage is: $(top -bn1|grep $ins_pid|awk '{print $9}')
+		echo \[mongod\] mongod instance parameters is: $(ps aux|grep mongod|grep -v grep|awk '{for (i=11;i<=NF;i++)printf ("%s ",$i);print ""}')
+	else
+		echo \[mongod\] mongod not alive
+	fi
+}
+if [[ $# -eq 1 ]];then
+	case $1 in 
+		start) 
+			start
+			;;
+		restart)
+			restart
+			;;
+		stop)
+			stop
+			;;
+		status)
+			status
+			;;
+		help)
+			help
+			;;
+		*)
+			help
+			;;
+	esac
+else
+	help
+fi

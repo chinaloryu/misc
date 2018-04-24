@@ -1,0 +1,85 @@
+#!/bin/bash
+nginx_cur=$(ls /u01/services|grep nginx)
+work_dir=/u01/services/${nginx_cur}
+help() {
+	echo Usage: $0 \{ start \| restart \| stop \| status\} 
+}
+start() {
+	cd ${work_dir}
+	r_pid=$(pgrep nginx|wc -l)
+	if [[ $r_pid -gt 1 ]];then
+		echo nginx is alive
+	else
+		sbin/nginx
+		if [[ $? -eq 0 ]];then
+			echo \[nginx\] nginx start successfully.
+		else
+			echo \[nginx\] nginx start failed,please start manually.
+		fi
+	fi
+}
+restart() {
+	cd ${work_dir}
+	stop
+	start
+	if [[ $? -eq 0 ]];then
+		echo \[nginx\] restart nginx successfully
+	else
+		echo \[nginx\] nginx restart failed,please restart manually
+	fi
+}
+stop() {
+	cd ${work_dir}
+	r_pid=$(pgrep nginx|wc -l)
+	if [[ $r_pid -gt 1 ]];then
+		sbin/nginx -s stop
+		if [[ $? -eq 0 ]];then
+			echo \[nginx\] nginx stop successfully.
+		else
+			echo \[nginx\] nginx stop failed,please stop manually.
+		fi
+	else
+		echo \[nginx\] nginx is \*NOT\* alive.
+	fi
+}
+status() {
+	ngx_pid=$(ps aux|grep nginx|grep -v grep|wc -l)
+	if [[ $ngx_pid -ge 2 ]];then
+		echo \[nginx\] nginx version is: $(${work_dir}/sbin/nginx -V 2>&1|grep nginx\ version|awk -F ':' '{print $2}')
+		for i in $(ps aux|grep nginx|grep master|grep -v grep|awk '{print $2}');
+		do
+			echo \[nginx\] nginx master pid is: $i,	memory usage is: $(top -bn1|grep $i|awk '{print $6}'),cpu usage percentage is: $(top -bn1|grep $i|awk '{print $9}')
+		done
+			echo \[nginx\] nginx worker threads amount is: $(ps aux|grep nginx|grep worker|grep -v grep|wc -l)
+		for i in $(ps aux|grep nginx|grep worker|grep -v grep|awk '{print $2}');
+		do
+			echo \[nginx\] nginx worker pid is: $i,	memory usage is: $(top -bn1|grep $i|awk '{print $6}'),cpu usage percentage is: $(top -bn1|grep $i|awk '{print $9}')
+		done
+	else
+		echo \[nginx\] nginx not alive
+	fi	
+}
+if [[ $# -eq 1 ]];then
+	case $1 in 
+		start) 
+			start
+			;;
+		restart)
+			restart
+			;;
+		stop)
+			stop
+			;;
+		status)
+			status
+			;;
+		help)
+			help
+			;;
+		*)
+			help
+			;;
+	esac
+else
+	help
+fi

@@ -1,0 +1,152 @@
+#!/bin/bash
+source /etc/profile
+work_dir=/u01/services
+size_100m=104857600
+help() {
+	echo Usage: $0 \{start \| restart \| stop\|status\|cleanlog \} \{ all\|\[instance1 \[instance2 \[instance3 ...\]\]\]\}
+}
+start() {
+	cd ${work_dir}
+	t_pid=$(ps aux|grep $1|grep -v cronolog|grep -v grep|grep -v \/bin\/sh|grep -v \/bin\/bash|wc -l)
+	if [[ $t_pid -eq 1 ]];then
+		echo \[$1\] tomcat instance $1 is alive.
+	else
+		echo \[$1\] try to start tomcat instance $1,please wait...
+		cd ${work_dir}/$1/bin
+		nohup ./startup.sh 2>/dev/null &
+		sleep 15
+		n_pid=$(ps aux|grep $1|grep -v cronolog|grep -v grep|grep -v \/bin\/sh|grep -v \/bin\/bash|wc -l)
+		if [[ $n_pid -lt 1 ]];then
+			echo \[$1\] tomcat instance $1 start failed,please start manually.
+		else
+			echo \[$1\] tomcat instance $1 successfully started.
+		fi
+	fi
+}
+restart() {
+	cd ${work_dir}
+	t_pid=$(ps aux|grep $1|grep -v cronolog|grep -v grep|grep -v \/bin\/sh|grep -v \/bin\/bash|wc -l)
+	if [[ $t_pid -lt 1 ]];then
+		echo \[$1\] tomcat instance $1 not alive,try to start ...
+		start $1
+	else
+		echo \[$1\] try to shutdown tomcat instance $1
+		for i in $(ps aux|grep $1|grep -v cronolog|grep -v grep|grep -v \/bin\/sh|grep -v \/bin\/bash|awk '{print $2}');
+		do
+			kill -9 $i
+		done
+		if [[ $? -eq 0 ]];then
+			echo \[$1\] successfully stop tomcat instance $1,try to start,please wait...
+			start $1
+		else
+			echo \[$1\] stop tomcat instance $1 failed,please restart manually.
+		fi
+	fi
+}
+stop() {
+	cd ${work_dir}
+	t_pid=$(ps aux|grep $1|grep -v cronolog|grep -v grep|grep -v \/bin\/sh|grep -v \/bin\/bash|wc -l)
+	if [[ $t_pid -lt 1 ]];then
+		echo \[$1\] tomcat instance $1 not alive.
+	else
+		for i in $(ps aux|grep $1|grep -v cronolog|grep -v grep|grep -v \/bin\/sh|grep -v \/bin\/bash|awk '{print $2}');
+		do
+			kill -9 $i
+		done
+		if [[ $? -eq 0 ]];then
+			echo \[$1\] tomcat instance $1 successfully stopped.
+		else
+			echo \[$1\] stop tomcat instance $1 failed,please stop manually.
+		fi
+	fi
+}
+status(){
+	ins_pid=$(ps aux|grep $1|grep -v cronolog|grep -v grep|grep -v \/bin\/sh|grep -v \/bin\/bash|awk '{print $2}')
+	if [[ -n $ins_pid ]];then
+		echo \[$1\] tomcat instance version is: $(${work_dir}/$1/bin/version.sh|grep Server\ version|awk -F ':' '{print $2}')
+		echo \[$1\] tomcat instance pid is: ${ins_pid}
+		echo \[$1\] tomcat instance memory usage is: $(top -bn1|grep $ins_pid|awk '{print $6}')
+		echo \[$1\] tomcat instance memory usage percentage is: $(top -bn1|grep $ins_pid|awk '{print $10}')
+		echo \[$1\] tomcat instance cpu load is: $(top -bn1|grep $ins_pid|awk '{print $9}')
+		echo \[$1\] tomcat instance parameters is: $(ps aux|grep $1|grep -v cronolog|grep -v grep|grep -v \/bin\/sh|grep -v \/bin\/bash|awk '{for (i=11;i<=NF;i++)printf ("%s ",$i);print ""}')
+	else
+		echo \[$1\] tomcat instance $1 not alive
+	fi
+}
+cleanlog(){
+	cd ${work_dir}/$1/logs
+	RET=$(find ./ -mtime +7|wc -l)
+	cata_size=$(ls -l ./|grep catalina.out|awk '{print $5}')
+	if [[ ${RET} -ge 1 || ${cata_size} -ge ${size_100m} ]];then
+		echo \[$1\] cleaning instance $1 log files,please wait
+		find ${work_dir}/$1/logs -mtime +7 -exec rm -rf {} \;
+		cp /dev/null  catalina.out
+		echo \[$1\] clean instance $1 log files finished.
+	else
+		echo \[$1\] log files cleaned up!
+	fi
+}
+if [[ $# -le 1 ]];then
+	help
+else
+	if [[ $2 == all || $2 == ALL ]];then
+		for i in $(ls ${work_dir}|grep svr-t7);
+		do
+			case $1 in
+				start)
+					start $i
+					;;
+				restart)
+					restart $i
+					;;
+				stop)
+					stop $i
+					;;
+				status)
+					status $i
+					;;
+				cleanlog)
+					cleanlog $i
+					;;
+				help)
+					help
+					;;
+				*)
+					help
+					;;
+			esac
+		done
+	else
+		for ((i=2;i<=$#;i++));
+		do
+			eval ins_dir=${work_dir}/\$$i
+			if [[ -d $ins_dir ]];then
+				case $1 in
+					start)
+						eval start \$$i
+						;;
+					restart)
+						eval restart \$$i
+						;;
+					stop)
+						eval stop \$$i
+						;;
+					status)
+						eval status \$$i
+						;;
+					cleanlog)
+						eval cleanlog \$$i
+						;;
+					help)
+						help
+						;;
+					*)
+						help
+						;;
+				esac
+			else
+				eval echo \[\$$1\]tomcat instance \$$i not exists.
+			fi
+		done
+	fi
+fi

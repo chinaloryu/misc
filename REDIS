@@ -1,0 +1,82 @@
+#!/bin/bash
+redis_cur=$(ls /u01/services|grep redis)
+work_dir=/u01/services/${redis_cur}
+help() {
+	echo Usage: $0 \{ start \| restart \| stop \|status \}
+}
+start() {
+	cd ${work_dir}
+	r_pid=$(pgrep redis|wc -l)
+	if [[ $r_pid -ge 1 ]];then
+		echo \[redis\] redis is alive
+	else
+		src/redis-server redis.conf
+		if [[ $? -eq 0 ]];then
+			echo \[redis\] redis start successfully.
+		else
+			echo \[redis\] redis start failed,please start manually.
+		fi
+	fi
+}
+restart() {
+	cd ${work_dir}
+	r_pid=$(pgrep redis|wc -l)
+	if [[ $r_pid -ge 1 ]];then
+		stop
+		start
+	else
+		echo \[redis\] redis is \*NOT\* alive, try to start it.
+		start
+	fi
+}
+stop() {
+	cd ${work_dir}
+	r_pid=$(pgrep redis|wc -l)
+	if [[ $r_pid -ge 1 ]];then
+		pgrep redis|xargs kill -9
+		if [[ $? -eq 0 ]];then
+			echo \[redis\] redis stop successfully.
+		else
+			echo \[redis\] redis stop failed,please stop manually.
+		fi
+	else
+		echo \[redis\] redis is \*NOT\* alive.
+	fi
+}
+status() {
+	ins_pid=$(ps aux|grep redis|grep -v grep|awk '{print $2}')
+	if [[ -n $ins_pid ]];then
+		echo \[redis\] redis version is: $(${work_dir}/src/redis-cli -h $(cat ${work_dir}/redis.conf|grep bind|awk '{print $2}') -a $(cat ${work_dir}/redis.conf|grep requirepass|awk '{print $2}') info|grep redis_version|awk -F ':' '{print $2}' )
+		echo \[redis\] redis pid is: ${ins_pid}
+		echo \[redis\] redis instance memory usage is: $(top -bn1|grep $ins_pid|awk '{print $6}')
+		echo \[redis\] redis instance memory usage percentage is: $(top -bn1|grep $ins_pid|awk '{print $10}')
+		echo \[redis\] redis instance cpu usage percentage is: $(top -bn1|grep $ins_pid|awk '{print $9}')
+		echo \[redis\] redis instance parameters is: $(ps aux|grep redis|grep -v grep|awk '{for (i=11;i<=NF;i++)printf ("%s ",$i);print ""}')	
+	else
+		echo \[redis\] redis not alive
+	fi
+}
+if [[ $# -eq 1 ]];then
+	case $1 in 
+		start) 
+			start
+			;;
+		restart)
+			restart
+			;;
+		stop)
+			stop
+			;;
+		status)
+			status
+			;;
+		help)
+			help
+			;;
+		*)
+			help
+			;;
+	esac
+else
+	help
+fi

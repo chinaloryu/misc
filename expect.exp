@@ -1,0 +1,12 @@
+#!/usr/bin/expect -f
+set timeout 5
+set username [lindex $argv 0]
+set passwd [lindex $argv 1]
+spawn sqlplus $username/$passwd
+expect {
+	"SQL>"
+	{send "@rollback.sql;\r";exp_continue;}
+	"Commit complete.\r\rSQL>"
+	{send "exit\r"}
+}
+expect eof
